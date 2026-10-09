@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Berlin Baustellen Map</title>
+    <meta name="description" content="What's being built near you? Construction sites and road closures in Berlin from open data." />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Baustellen nearby <small>Berlin</small></h1>
+      <div class="controls">
+        <button id="locate" type="button">📍 My location</button>
+        <label>Radius <select id="radius"></select></label>
+      </div>
+    </header>
+
+    <main>
+      <div id="map" aria-label="Map. Tap anywhere to check that spot."></div>
+      <aside>
+        <div id="status" hidden></div>
+        <details class="filters">
+          <summary>Filters &amp; legend</summary>
+          <label><input type="checkbox" id="show-planb" checked /> Include all permitted works (GDI “Planbare Ereignisse”)</label>
+          <label><input type="checkbox" id="show-parking" /> …including no-parking-zone-only permits</label>
+          <label><input type="checkbox" id="show-ended" /> Show ended</label>
+          <ul class="legend">
+            <li><span class="dot" style="background:#d7263d"></span>Closure</li>
+            <li><span class="dot" style="background:#f46036"></span>Lane / partial restriction</li>
+            <li><span class="dot" style="background:#e2a600"></span>Construction / works</li>
+            <li><span class="dot" style="background:#7b4fb3"></span>Other (hazard, disruption)</li>
+          </ul>
+        </details>
+        <p id="summary" class="summary"></p>
+        <p class="hint">Tap the map to check any spot.</p>
+        <ul id="list"></ul>
+      </aside>
+    </main>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>
