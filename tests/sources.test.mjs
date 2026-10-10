@@ -108,3 +108,56 @@ test('translateLocation translates connectors but keeps street names', () => {
   assert.equal(translateLocation('Manfred-von-Richthofen-Straße (Tempelhof)'), 'Manfred-von-Richthofen-Straße (Tempelhof)');
   assert.equal(translateTerm('Vollsperrung'), 'Full closure');
 });
+
+import { geometryDistanceM } from '../js/geo.js';
+
+test('geometryDistanceM: inside polygon, near a segment, far away', () => {
+  const square = { type: 'Polygon', coordinates: [[[13.40, 52.50], [13.41, 52.50], [13.41, 52.51], [13.40, 52.51], [13.40, 52.50]]] };
+  assert.equal(geometryDistanceM(point(13.405, 52.505), square), 0);
+  // ~0.0003° lat ≈ 33 m south of the bottom edge, mid-segment (no vertex nearby)
+  const d = geometryDistanceM(point(13.405, 52.4997), square);
+  assert.ok(d > 30 && d < 37, `got ${d}`);
+  assert.ok(geometryDistanceM(point(13.5, 52.6), square) > 5000);
+});
+
+import { normalizeOsm, normalizeCycle, isInformative, osmGeometry } from '../js/sources.js';
+
+test('normalizeOsm: building site with developer, polygon geometry', () => {
+  const p = normalizeOsm({
+    type: 'way', id: 1, timestamp: '2026-05-01T10:00:00Z',
+    tags: { building: 'construction', construction: 'residential', name: 'The Mind', operator: 'OTTO WULFF', website: 'https://x.de' },
+    geometry: [{ lat: 52.5, lon: 13.4 }, { lat: 52.5, lon: 13.41 }, { lat: 52.51, lon: 13.41 }, { lat: 52.5, lon: 13.4 }],
+  });
+  assert.equal(p.title, 'The Mind');
+  assert.equal(p.type, 'residential');
+  assert.equal(p.builder, 'OTTO WULFF');
+  assert.equal(p.geometry.type, 'Polygon');
+  assert.equal(p.osmUrl, 'https://www.openstreetmap.org/way/1');
+  assert.ok(isInformative(p));
+});
+
+test('normalizeOsm: roads stay lines; vague unnamed sites are not informative', () => {
+  const road = normalizeOsm({ type: 'way', id: 2, tags: { highway: 'construction', construction: 'primary' }, geometry: [{ lat: 52.5, lon: 13.4 }, { lat: 52.5, lon: 13.41 }] });
+  assert.equal(road.type, 'road_primary');
+  assert.equal(road.geometry.type, 'LineString');
+  assert.ok(isInformative(road));
+  const vague = normalizeOsm({ type: 'node', id: 3, lat: 52.5, lon: 13.4, tags: { landuse: 'construction' } });
+  assert.equal(vague.type, 'site');
+  assert.equal(isInformative(vague), false);
+  assert.equal(osmGeometry({ type: 'relation', id: 4, center: { lat: 1, lon: 2 } }).type, 'Point');
+});
+
+test('normalizeCycle: infraVelo project fields', () => {
+  const p = normalizeCycle({
+    properties: {
+      projektnummer: '9010002', strassenname: 'Karl-Marx-Allee_Straußberger Platz', status: 'In Bau', bauherr: 'Bezirksamt Mitte',
+      baustart: '2. Quartal 2026', bauende: '4. Quartal 2027', projektbeschreibung_lang: ' Geschützte Radfahrstreifen. ',
+      massnahmen_typ1: 'Geschützter Radfahrstreifen', massnahmen_typ2: 'Fahrradstraße',
+    },
+    geometry: { type: 'MultiLineString', coordinates: [[[13.4, 52.5], [13.41, 52.5]]] },
+  });
+  assert.equal(p.title, 'Karl-Marx-Allee / Straußberger Platz');
+  assert.deepEqual(p.types, ['Geschützter Radfahrstreifen', 'Fahrradstraße']);
+  assert.equal(p.description, 'Geschützte Radfahrstreifen.');
+  assert.equal(p.status, 'In Bau');
+});

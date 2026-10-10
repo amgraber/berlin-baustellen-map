@@ -1,0 +1,47 @@
+# Deploys the static site to GitHub Pages, with a fresh data/projects.json
+# snapshot (OpenStreetMap construction sites + infraVelo cycle projects).
+# Runs on every push to main and once a day.
+name: Deploy site with daily data
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '30 3 * * *' # 03:30 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+      # If Overpass is down, deploy anyway: the app then queries the sources live.
+      - name: Fetch project snapshot
+        run: npm run fetch-data
+        continue-on-error: true
+      - name: Assemble site
+        run: |
+          mkdir -p _site
+          cp -r index.html css js _site/
+          if [ -f data/projects.json ]; then mkdir -p _site/data && cp data/projects.json _site/data/; fi
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

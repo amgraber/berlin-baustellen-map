@@ -27,6 +27,7 @@
         <div id="status" hidden></div>
         <details class="filters">
           <summary data-i18n="filters">Filters &amp; legend</summary>
+          <label><input type="checkbox" id="show-projects" checked /> <span data-i18n="showProjects"></span></label>
           <label><input type="checkbox" id="show-planb" checked /> <span data-i18n="showPlanb"></span></label>
           <label><input type="checkbox" id="show-parking" /> <span data-i18n="showParking"></span></label>
           <label><input type="checkbox" id="show-ended" /> <span data-i18n="showEnded"></span></label>
@@ -35,6 +36,7 @@
             <li><span class="dot" style="background:#f46036"></span><span data-i18n="legendPartial"></span></li>
             <li><span class="dot" style="background:#e2a600"></span><span data-i18n="legendWorks"></span></li>
             <li><span class="dot" style="background:#7b4fb3"></span><span data-i18n="legendOther"></span></li>
+            <li><span class="dot square" style="background:#0b7a75"></span><span data-i18n="legendProject"></span></li>
           </ul>
         </details>
         <p id="summary" class="summary"></p>

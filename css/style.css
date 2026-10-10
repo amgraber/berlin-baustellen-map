@@ -111,3 +111,10 @@ aside {
 .popup .original { margin: 4px 0 8px; font-size: 12px; color: var(--muted); }
 .popup .original summary { cursor: pointer; }
 .popup .original p { margin: 4px 0 0; }
+.dot.square { border-radius: 3px; }
+#list li.project .title { color: #0b7a75; }
+#list .why-line { font-size: 13px; color: #0b7a75; font-weight: 500; }
+.popup .why { margin: 8px 0; padding: 6px 8px; border-left: 3px solid #0b7a75; background: #0b7a7510; border-radius: 4px; font-size: 13px; }
+.popup .why.none { border-left-color: var(--line); background: #0000000a; color: var(--muted); }
+.popup .why ul { margin: 4px 0 0; padding-left: 16px; }
+.popup .translate { font-size: 12px; white-space: nowrap; }

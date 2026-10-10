@@ -10,7 +10,20 @@ export const SOURCES = {
   tic: 'https://api.viz.berlin.de/tic3/baustellen_sperrungen_tic.json',
   // GDI Berlin WFS "Planbare Ereignisse im öffentlichen Straßenland" (~8k permitted works).
   planbWfs: 'https://gdi.berlin.de/services/wfs/planb_ereignisse',
+
+  // "What's being built" sources, used to explain closures:
+  // OpenStreetMap construction sites (buildings, roads, rail) via Overpass API.
+  overpass: 'https://overpass-api.de/api/interpreter',
+  overpassMirror: 'https://overpass.kumi.systems/api/interpreter',
+  // GDI Berlin WFS "Radverkehrsmaßnahmen (seit 2021)": infraVelo cycle-infrastructure projects.
+  cycleWfs: 'https://gdi.berlin.de/services/wfs/radverkehrsmassnahmen',
+  // Daily snapshot of both project sources (scripts/fetch-projects.mjs). The
+  // app falls back to the live queries above when it's missing.
+  projectsSnapshot: './data/projects.json',
 };
+
+// Max distance (m) between a closure and a project for them to be shown as related.
+export const RELATED_PROJECT_MAX_M = 40;
 
 export const BERLIN_CENTER = [52.52, 13.405];
 export const DEFAULT_RADIUS_M = 500;
