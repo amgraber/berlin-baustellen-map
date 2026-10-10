@@ -104,3 +104,10 @@ aside {
   aside { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
   h1 { font-size: 16px; }
 }
+
+.lang { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.lang button { background: var(--bg); color: var(--fg); border: 0; border-radius: 0; padding: 6px 10px; font-weight: 600; }
+.lang button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.popup .original { margin: 4px 0 8px; font-size: 12px; color: var(--muted); }
+.popup .original summary { cursor: pointer; }
+.popup .original p { margin: 4px 0 0; }

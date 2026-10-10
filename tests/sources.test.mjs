@@ -87,3 +87,24 @@ test('geo helpers', () => {
     [1, 2],
   );
 });
+
+import { translateText, translateLocation, translateTerm } from '../js/translate-de-en.js';
+
+test('translateText covers common VIZ phrases and falls back on unknown text', () => {
+  assert.equal(
+    translateText('Leitungsbau, Vollsperrung für Kfz-Verkehr. Im Anschluss folgen weitere Arbeiten'),
+    'Utility line construction, fully closed to motor vehicles. Further works will follow',
+  );
+  assert.equal(translateText('Fahrbahn auf einen Fahrstreifen je Richtung verengt'), 'Carriageway narrowed to one lane in each direction');
+  assert.equal(translateText('Das Linksabbiegen in den Mehringdamm ist nicht möglich'), 'No left turn into Mehringdamm');
+  assert.equal(translateText('Vollsperrung für den Kfz-, Rad- und Fußverkehr'), 'Fully closed to vehicles, bikes and pedestrians');
+  assert.equal(translateText('rechter Fahrstreifen gesperrt, vorübergehende Beschränkung des zulässigen Gesamtgewichts auf 2,8 t'), 'Right lane closed, temporary weight limit 2.8 t');
+  assert.equal(translateText('Etwas völlig Unbekanntes, gesperrt'), null);
+});
+
+test('translateLocation translates connectors but keeps street names', () => {
+  assert.equal(translateLocation('in beiden Richtungen zwischen Luisenstraße und Albrechtstraße'), 'in both directions between Luisenstraße and Albrechtstraße');
+  assert.equal(translateLocation('Richtung Unter den Linden zwischen Französische Straße und Weidendammer Brücke'), 'towards Unter den Linden between Französische Straße and Weidendammer Brücke');
+  assert.equal(translateLocation('Manfred-von-Richthofen-Straße (Tempelhof)'), 'Manfred-von-Richthofen-Straße (Tempelhof)');
+  assert.equal(translateTerm('Vollsperrung'), 'Full closure');
+});

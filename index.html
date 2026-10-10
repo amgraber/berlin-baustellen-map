@@ -3,38 +3,42 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Berlin Baustellen Map</title>
+    <title>Construction nearby · Berlin</title>
     <meta name="description" content="What's being built near you? Construction sites and road closures in Berlin from open data." />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="css/style.css" />
   </head>
   <body>
     <header>
-      <h1>Baustellen nearby <small>Berlin</small></h1>
+      <h1><span data-i18n="title">Construction nearby</span> <small>Berlin</small></h1>
       <div class="controls">
-        <button id="locate" type="button">📍 My location</button>
-        <label>Radius <select id="radius"></select></label>
+        <button id="locate" type="button" data-i18n="locate">📍 My location</button>
+        <label><span data-i18n="radius">Radius</span> <select id="radius"></select></label>
+        <div class="lang" role="group" data-i18n-aria="langToggle" aria-label="Language">
+          <button type="button" data-lang="en" aria-pressed="true">EN</button>
+          <button type="button" data-lang="de" aria-pressed="false">DE</button>
+        </div>
       </div>
     </header>
 
     <main>
-      <div id="map" aria-label="Map. Tap anywhere to check that spot."></div>
+      <div id="map" data-i18n-aria="mapLabel" aria-label="Map. Tap anywhere to check that spot."></div>
       <aside>
         <div id="status" hidden></div>
         <details class="filters">
-          <summary>Filters &amp; legend</summary>
-          <label><input type="checkbox" id="show-planb" checked /> Include all permitted works (GDI “Planbare Ereignisse”)</label>
-          <label><input type="checkbox" id="show-parking" /> …including no-parking-zone-only permits</label>
-          <label><input type="checkbox" id="show-ended" /> Show ended</label>
+          <summary data-i18n="filters">Filters &amp; legend</summary>
+          <label><input type="checkbox" id="show-planb" checked /> <span data-i18n="showPlanb"></span></label>
+          <label><input type="checkbox" id="show-parking" /> <span data-i18n="showParking"></span></label>
+          <label><input type="checkbox" id="show-ended" /> <span data-i18n="showEnded"></span></label>
           <ul class="legend">
-            <li><span class="dot" style="background:#d7263d"></span>Closure</li>
-            <li><span class="dot" style="background:#f46036"></span>Lane / partial restriction</li>
-            <li><span class="dot" style="background:#e2a600"></span>Construction / works</li>
-            <li><span class="dot" style="background:#7b4fb3"></span>Other (hazard, disruption)</li>
+            <li><span class="dot" style="background:#d7263d"></span><span data-i18n="legendClosure"></span></li>
+            <li><span class="dot" style="background:#f46036"></span><span data-i18n="legendPartial"></span></li>
+            <li><span class="dot" style="background:#e2a600"></span><span data-i18n="legendWorks"></span></li>
+            <li><span class="dot" style="background:#7b4fb3"></span><span data-i18n="legendOther"></span></li>
           </ul>
         </details>
         <p id="summary" class="summary"></p>
-        <p class="hint">Tap the map to check any spot.</p>
+        <p class="hint" data-i18n="hint">Tap the map to check any spot.</p>
         <ul id="list"></ul>
       </aside>
     </main>

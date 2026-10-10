@@ -2,51 +2,33 @@
 import { BERLIN_CENTER, DEFAULT_RADIUS_M, RADIUS_OPTIONS_M } from './config.js';
 import { fetchVizFeeds, fetchPlanbNear } from './sources.js';
 import { anchorOf, distanceToGeometryM } from './geo.js';
+import { t, getLang, setLang, locale } from './i18n.js';
+import { translateText, translateLocation, translateTerm } from './translate-de-en.js';
 
 const COLORS = { closure: '#d7263d', partial: '#f46036', works: '#e2a600', other: '#7b4fb3' };
-const CATEGORY_LABEL = { closure: 'Closure', partial: 'Lane restriction', works: 'Works', other: 'Other' };
+const CATEGORY_KEY = { closure: 'catClosure', partial: 'catPartial', works: 'catWorks', other: 'catOther' };
 const SOURCE_LABEL = {
   viz: 'VIZ Verkehrsredaktion',
   tic: 'VIZ Landesmeldestelle',
   planb: 'Planbare Ereignisse (GDI Berlin)',
 };
-// Short English hints for the most common German terms.
-const GLOSS = {
-  Vollsperrung: 'full closure',
-  Fahrtrichtungssperrung: 'one direction closed',
-  'keine Sperrung': 'no closure',
-  Haltverbote: 'no-parking zone',
-  'keine Fahrbahn-Einschränkung': 'no carriageway restriction',
-  Fahrbahneinengung: 'carriageway narrowed',
-  'Fahrstreifen-Reduzierung': 'fewer lanes',
-  'Fahrstreifen-Verschwenkung': 'lanes shifted',
-  Gehwegvollsperrung: 'sidewalk closed',
-  'Vollsperrung beider Fahrbahnen': 'full closure, both directions',
-  'Sperrung einer Fahrtrichtung': 'one direction closed',
-  Gegenverkehrsregelung: 'alternating one-lane traffic',
-  Baustelle: 'construction site',
-  Bauarbeiten: 'construction work',
-  Arbeitsstelle: 'work site',
-  Sperrung: 'closure',
-  Gefahr: 'hazard',
-  Störung: 'disruption',
-  Beidseitig: 'both directions',
-};
 
 const state = {
   origin: [BERLIN_CENTER[1], BERLIN_CENTER[0]], // [lng, lat]
-  originLabel: 'Berlin centre',
+  originKey: 'originCentre',
   radius: DEFAULT_RADIUS_M,
   vizItems: [],
   planbItems: [],
   planbKey: null,
   layers: new Map(),
+  status: null, // { key, vars, kind }
 };
 
 const $ = (sel) => document.querySelector(sel);
 const els = {
   locate: $('#locate'),
   radius: $('#radius'),
+  langButtons: document.querySelectorAll('[data-lang]'),
   showPlanb: $('#show-planb'),
   showParking: $('#show-parking'),
   showEnded: $('#show-ended'),
@@ -71,25 +53,49 @@ const radiusCircle = L.circle([0, 0], {
 }).addTo(map);
 
 map.on('click', (e) => {
-  if (els.status.dataset.kind !== 'error') setStatus('');
-  setOrigin([e.latlng.lng, e.latlng.lat], 'Picked point');
+  if (state.status?.kind !== 'error') setStatus(null);
+  setOrigin([e.latlng.lng, e.latlng.lat], 'originPicked');
 });
 
 // ---------- helpers ----------
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-const withGloss = (term) => (term && GLOSS[term] ? `${esc(term)} <span class="gloss">(${GLOSS[term]})</span>` : esc(term));
+const isEn = () => getLang() === 'en';
 
-const dateFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-const dateTimeFmt = new Intl.DateTimeFormat('en-GB', {
-  day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
-});
-function fmtDate(d) {
-  if (!d) return 'unknown';
-  return d.getHours() === 0 && d.getMinutes() === 0 ? dateFmt.format(d) : dateTimeFmt.format(d);
+// Display text for a data field in the current language. In English, falls
+// back to the German original when the translator doesn't cover it.
+const memo = new Map();
+function localized(kind, text) {
+  if (!text || !isEn()) return text;
+  const key = `${kind}\u0000${text}`;
+  if (!memo.has(key)) {
+    const fn = { text: translateText, location: translateLocation, term: translateTerm }[kind];
+    memo.set(key, fn(text) ?? text);
+  }
+  return memo.get(key);
 }
-const fmtDistance = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
+
+// A short label, with the German original as a muted hint in English mode.
+function termHtml(term) {
+  if (!term) return '';
+  const shown = localized('term', term);
+  return shown !== term ? `${esc(shown)} <span class="gloss">(${esc(term)})</span>` : esc(term);
+}
+
+function fmtDate(d) {
+  if (!d) return t('unknown');
+  const dateOnly = d.getHours() === 0 && d.getMinutes() === 0;
+  return new Intl.DateTimeFormat(locale(), {
+    day: 'numeric', month: 'short', year: 'numeric',
+    ...(dateOnly ? {} : { hour: '2-digit', minute: '2-digit' }),
+  }).format(d);
+}
+
+function fmtDistance(m) {
+  if (m < 1000) return `${Math.round(m / 10) * 10} m`;
+  return `${new Intl.NumberFormat(locale(), { maximumFractionDigits: 1, minimumFractionDigits: 1 }).format(m / 1000)} km`;
+}
 
 function statusOf(item, now = new Date()) {
   if (item.start && item.start > now) return 'upcoming';
@@ -105,42 +111,64 @@ function daysUntil(date, now) {
 
 function timeHint(item, now = new Date()) {
   const s = statusOf(item, now);
-  if (s === 'ended') return 'ended';
+  if (s === 'ended') return t('ended');
   if (s === 'upcoming') {
-    const d = daysUntil(item.start, now);
-    return d === 0 ? 'starts today' : d === 1 ? 'starts tomorrow' : `starts in ${d} days`;
+    const n = daysUntil(item.start, now);
+    return n === 0 ? t('startsToday') : n === 1 ? t('startsTomorrow') : t('startsIn', { n });
   }
-  if (!item.end) return 'no end date';
-  const d = daysUntil(item.end, now);
-  return d === 0 ? 'ends today' : d === 1 ? 'ends tomorrow' : `${d} days left`;
+  if (!item.end) return t('noEnd');
+  const n = daysUntil(item.end, now);
+  return n === 0 ? t('endsToday') : n === 1 ? t('endsTomorrow') : t('daysLeft', { n });
 }
 
 function popupHtml(item) {
-  const rows = [];
-  if (item.reason) rows.push(`<p class="reason">${esc(item.reason)}</p>`);
+  const reason = localized('text', item.reason);
+  const section = localized('location', item.section);
   const meta = [];
-  if (item.restriction) meta.push(['Restriction', withGloss(item.restriction)]);
-  if (item.lanes) meta.push(['Lanes', `${item.lanes.closed} of ${item.lanes.total} closed`]);
-  if (item.direction) meta.push(['Direction', withGloss(item.direction)]);
-  meta.push(['Start', esc(fmtDate(item.start))]);
-  meta.push(['Planned end', `${esc(fmtDate(item.end))} <span class="gloss">· ${timeHint(item)}</span>`]);
+  if (item.restriction) meta.push([t('restriction'), termHtml(item.restriction)]);
+  if (item.lanes) meta.push([t('lanes'), esc(t('lanesClosed', item.lanes))]);
+  if (item.direction) meta.push([t('direction'), termHtml(item.direction)]);
+  meta.push([t('start'), esc(fmtDate(item.start))]);
+  meta.push([t('plannedEnd'), `${esc(fmtDate(item.end))} <span class="gloss">· ${esc(timeHint(item))}</span>`]);
+  // In English, keep the original German visible: it's what's on the street signs.
+  const originals = [item.section !== section && item.section, item.reason !== reason && item.reason].filter(Boolean);
   return `
     <div class="popup">
-      <div class="badge" style="background:${COLORS[item.category]}">${withGloss(item.kind) || CATEGORY_LABEL[item.category]}</div>
-      <h3>${esc(item.street)}</h3>
-      ${item.section ? `<div class="section">${esc(item.section)}</div>` : ''}
-      ${rows.join('')}
-      <dl>${meta.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
-      <div class="source">Source: ${SOURCE_LABEL[item.source]}${
-        item.updated ? ` · updated ${esc(dateFmt.format(item.updated))}` : ''
+      <div class="badge" style="background:${COLORS[item.category]}">${termHtml(item.kind) || esc(t(CATEGORY_KEY[item.category]))}</div>
+      <h3>${esc(localized('location', item.street))}</h3>
+      ${section ? `<div class="section">${esc(section)}</div>` : ''}
+      ${reason ? `<p class="reason">${esc(reason)}</p>` : ''}
+      <dl>${meta.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}</dl>
+      ${originals.length ? `<details class="original"><summary>${esc(t('original'))}</summary>${originals.map((o) => `<p>${esc(o)}</p>`).join('')}</details>` : ''}
+      <div class="source">${esc(t('source'))}: ${SOURCE_LABEL[item.source]}${
+        item.updated ? ` · ${esc(t('updated', { date: fmtDate(new Date(item.updated.toDateString())) }))}` : ''
       }</div>
     </div>`;
 }
 
-function setStatus(msg, kind = 'info') {
-  els.status.textContent = msg;
-  els.status.dataset.kind = kind;
-  els.status.hidden = !msg;
+function setStatus(key, vars = {}, kind = 'info') {
+  state.status = key ? { key, vars, kind } : null;
+  renderStatus();
+}
+
+function renderStatus() {
+  const s = state.status;
+  els.status.hidden = !s;
+  if (!s) return;
+  els.status.textContent = t(s.key, s.vars);
+  els.status.dataset.kind = s.kind;
+}
+
+// Static text in index.html, marked with data-i18n / data-i18n-aria.
+function renderStaticText() {
+  document.querySelectorAll('[data-i18n]').forEach((el) => (el.textContent = t(el.dataset.i18n)));
+  document.querySelectorAll('[data-i18n-aria]').forEach((el) => el.setAttribute('aria-label', t(el.dataset.i18nAria)));
+  els.langButtons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.lang === getLang())));
+  const selected = state.radius;
+  els.radius.innerHTML = RADIUS_OPTIONS_M.map(
+    (r) => `<option value="${r}" ${r === selected ? 'selected' : ''}>${fmtDistance(r)}</option>`,
+  ).join('');
+  document.title = `${t('title')} · Berlin`;
 }
 
 // ---------- core ----------
@@ -153,6 +181,10 @@ function visibleItems() {
     .map((i) => ({ ...i, distance: distanceToGeometryM(state.origin, i.geometry) }))
     .filter((i) => i.distance <= state.radius)
     .sort((a, b) => a.distance - b.distance);
+}
+
+function pinStyle(color) {
+  return { radius: 8, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1 };
 }
 
 function render() {
@@ -177,32 +209,30 @@ function render() {
       const [aLng, aLat] = anchorOf(item.geometry);
       L.circleMarker([aLat, aLng], pinStyle(color)).addTo(group);
     }
-    group.bindPopup(popupHtml(item), { maxWidth: 320 });
+    group.bindPopup(() => popupHtml(item), { maxWidth: 320 });
     group.addTo(resultsLayer);
     state.layers.set(item.id, group);
   }
 
-  els.summary.textContent = `${state.originLabel}: ${items.length} within ${fmtDistance(state.radius)}`;
+  els.summary.textContent = t('summary', { label: t(state.originKey), n: items.length, r: fmtDistance(state.radius) });
   els.list.innerHTML = items.length
     ? items
-        .map(
-          (i) => `
+        .map((i) => {
+          const section = localized('location', i.section);
+          const detail = i.reason ? localized('text', i.reason) : i.restriction ? localized('term', i.restriction) : localized('term', i.kind);
+          return `
       <li data-id="${esc(i.id)}" tabindex="0">
         <span class="dot" style="background:${COLORS[i.category]}"></span>
         <div class="body">
-          <div class="title">${esc(i.street)}</div>
-          ${i.section ? `<div class="sub">${esc(i.section)}</div>` : ''}
-          <div class="sub">${esc(i.reason || i.restriction || i.kind)}</div>
-          <div class="meta">${fmtDistance(i.distance)} · ${esc(fmtDate(i.start))} → ${esc(fmtDate(i.end))} · <span class="st-${statusOf(i)}">${timeHint(i)}</span></div>
+          <div class="title">${esc(localized('location', i.street))}</div>
+          ${section ? `<div class="sub">${esc(section)}</div>` : ''}
+          <div class="sub">${esc(detail)}</div>
+          <div class="meta">${fmtDistance(i.distance)} · ${esc(fmtDate(i.start))} → ${esc(fmtDate(i.end))} · <span class="st-${statusOf(i)}">${esc(timeHint(i))}</span></div>
         </div>
-      </li>`,
-        )
+      </li>`;
+        })
         .join('')
-    : '<li class="empty">Nothing reported here. Try a larger radius or another spot.</li>';
-}
-
-function pinStyle(color) {
-  return { radius: 8, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1 };
+    : `<li class="empty">${esc(t('empty'))}</li>`;
 }
 
 async function refreshPlanb() {
@@ -216,13 +246,13 @@ async function refreshPlanb() {
   } catch (err) {
     console.error(err);
     state.planbItems = [];
-    setStatus('Could not load the planned-works layer (GDI Berlin). Showing VIZ data only.', 'warn');
+    setStatus('planbFailed', {}, 'warn');
   }
 }
 
-async function setOrigin(lngLat, label) {
+async function setOrigin(lngLat, originKey) {
   state.origin = lngLat;
-  state.originLabel = label;
+  state.originKey = originKey;
   render(); // show VIZ results immediately, permits follow
   await refreshPlanb();
   render();
@@ -230,26 +260,32 @@ async function setOrigin(lngLat, label) {
 
 function locate() {
   if (!navigator.geolocation) {
-    setStatus('Geolocation is not available in this browser — tap the map to pick a point.', 'warn');
+    setStatus('geoUnavailable', {}, 'warn');
     return;
   }
-  setStatus('Finding your location…');
+  setStatus('locating');
   navigator.geolocation.getCurrentPosition(
     (pos) => {
-      setStatus('');
+      setStatus(null);
       const lngLat = [pos.coords.longitude, pos.coords.latitude];
       map.setView([lngLat[1], lngLat[0]], 16);
-      setOrigin(lngLat, 'Your location');
+      setOrigin(lngLat, 'originYou');
     },
-    (err) => setStatus(`Couldn't get your location (${err.message}). Tap the map to pick a point.`, 'warn'),
+    (err) => setStatus('geoFailed', { msg: err.message }, 'warn'),
     { enableHighAccuracy: true, timeout: 10000 },
   );
 }
 
+function switchLang(next) {
+  if (next === getLang()) return;
+  setLang(next);
+  map.closePopup();
+  renderStaticText();
+  renderStatus();
+  render();
+}
+
 // ---------- wiring ----------
-els.radius.innerHTML = RADIUS_OPTIONS_M.map(
-  (r) => `<option value="${r}" ${r === state.radius ? 'selected' : ''}>${fmtDistance(r)}</option>`,
-).join('');
 els.radius.addEventListener('change', async () => {
   state.radius = Number(els.radius.value);
   render();
@@ -265,6 +301,7 @@ els.showPlanb.addEventListener('change', async () => {
 els.showParking.addEventListener('change', render);
 els.showEnded.addEventListener('change', render);
 els.locate.addEventListener('click', locate);
+els.langButtons.forEach((b) => b.addEventListener('click', () => switchLang(b.dataset.lang)));
 
 function openFromList(e) {
   const li = e.target.closest('li[data-id]');
@@ -280,15 +317,17 @@ els.list.addEventListener('keydown', (e) => e.key === 'Enter' && openFromList(e)
 
 // ---------- boot ----------
 (async () => {
-  setStatus('Loading Berlin construction & closure data…');
+  setLang(getLang()); // sync <html lang>
+  renderStaticText();
+  setStatus('loading');
   render();
   try {
     const { items, errors } = await fetchVizFeeds();
     state.vizItems = items;
-    setStatus(errors.length ? 'One of the VIZ feeds failed to load; results may be incomplete.' : '', 'warn');
+    setStatus(errors.length ? 'vizPartial' : null, {}, 'warn');
   } catch (err) {
     console.error(err);
-    setStatus(`Could not load VIZ data: ${err.message}`, 'error');
+    setStatus('vizFailed', { msg: err.message }, 'error');
   }
   await refreshPlanb();
   render();
